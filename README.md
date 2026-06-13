@@ -12,6 +12,14 @@ Set `KAGI_API_KEY` in the environment:
 export KAGI_API_KEY=...
 ```
 
+Alternatively, write the key to the user configuration directory:
+
+```sh
+mkdir -p ~/.config/kagi
+printf '%s\n' '...' > ~/.config/kagi/api-key
+chmod 600 ~/.config/kagi/api-key
+```
+
 You can also pass a key directly with `--api-key`.
 
 ## Search

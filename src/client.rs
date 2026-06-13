@@ -1,5 +1,7 @@
 //! HTTP client execution for Kagi API commands.
 
+use std::{fs, io, path::PathBuf};
+
 use reqwest::{Client as HttpClient, StatusCode};
 use sec::Secret;
 use serde_json::Value;
@@ -14,8 +16,21 @@ use crate::{
 #[derive(Debug, Error)]
 pub enum ClientError {
     /// The Kagi API key was not provided.
-    #[error("Kagi API key is required; pass --api-key or set $KAGI_API_KEY")]
+    #[error(
+        "Kagi API key is required; pass --api-key, set $KAGI_API_KEY, or write ~/.config/kagi/api-key"
+    )]
     MissingApiKey,
+
+    /// The configured API key file could not be read.
+    #[error("failed to read API key from {path}: {source}", path = path.display())]
+    ApiKeyFile {
+        /// Path that was read for the API key.
+        path: PathBuf,
+
+        /// Underlying file read error.
+        #[source]
+        source: io::Error,
+    },
 
     /// Request body construction failed.
     #[error("request body failed: {source}")]
@@ -113,12 +128,35 @@ impl KagiClient {
     }
 }
 
-/// Executes the requested command.
-pub async fn run(args: Args) -> Result<(), ClientError> {
-    let Some(api_key) = args.api_key.as_ref() else {
+/// Resolves the API key from arguments, environment, or configuration.
+fn api_key(args: &Args) -> Result<Secret<String>, ClientError> {
+    if let Some(api_key) = args.api_key.clone() {
+        return Ok(api_key);
+    }
+
+    let Some(config_dir) = dirs::config_dir() else {
         return Err(ClientError::MissingApiKey);
     };
-    let client = KagiClient::new(args.base_url.clone(), api_key.clone());
+    let path = config_dir.join("kagi").join("api-key");
+    let key = match fs::read_to_string(&path) {
+        Ok(key) => key,
+        Err(source) if source.kind() == io::ErrorKind::NotFound => {
+            return Err(ClientError::MissingApiKey);
+        }
+        Err(source) => return Err(ClientError::ApiKeyFile { path, source }),
+    };
+
+    let key = key.trim_end_matches(['\r', '\n']).to_string();
+    if key.is_empty() {
+        return Err(ClientError::MissingApiKey);
+    }
+
+    Ok(Secret::new(key))
+}
+
+/// Executes the requested command.
+pub async fn run(args: Args) -> Result<(), ClientError> {
+    let client = KagiClient::new(args.base_url.clone(), api_key(&args)?);
 
     let result = match &args.command {
         Command::Search(search) => client.search(search).await,
