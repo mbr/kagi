@@ -127,19 +127,14 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
 
     match result {
         Ok(body) => {
-            println!("{}", normalize_output(&body));
+            println!("{}", body.trim_end_matches(['\r', '\n']));
             Ok(())
         }
         Err(error) => {
             if let ClientError::Status { body, .. } = &error {
-                eprintln!("{}", normalize_output(body));
+                eprintln!("{body}");
             }
             Err(error)
         }
     }
-}
-
-/// Removes trailing line endings before printing output.
-fn normalize_output(body: &str) -> &str {
-    body.trim_end_matches(['\r', '\n'])
 }
