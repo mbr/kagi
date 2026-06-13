@@ -12,20 +12,12 @@ pub struct Args {
     pub base_url: String,
 
     /// Kagi API key literal or `KAGI_API_KEY` environment value.
-    #[arg(long, env = "KAGI_API_KEY", hide_env_values = true, value_parser = parse_api_key, global = true)]
+    #[arg(long, env = "KAGI_API_KEY", hide_env_values = true, global = true)]
     pub api_key: Option<Secret<String>>,
 
     /// Command to execute.
     #[command(subcommand)]
     pub command: Command,
-}
-
-/// Parses a non-empty API key.
-fn parse_api_key(value: &str) -> Result<Secret<String>, String> {
-    if value.is_empty() {
-        return Err("API key must not be empty".to_string());
-    }
-    Ok(Secret::new(value.to_string()))
 }
 
 /// Kagi API operations.
