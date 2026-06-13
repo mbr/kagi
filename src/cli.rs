@@ -1,6 +1,6 @@
-//! Command-line interface definition and argument preprocessing.
+//! Command-line interface definitions.
 
-use clap::{ArgAction, Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand, ValueEnum};
 use sec::Secret;
 
 /// Top-level command-line arguments.
@@ -26,82 +26,74 @@ pub enum Command {
     /// Perform a Kagi web search.
     Search(Box<SearchArgs>),
 
-    /// Extract markdown content from URLs.
+    /// Extract page content as markdown from URLs.
     Extract(ExtractArgs),
 }
 
 /// Search endpoint arguments.
 #[derive(Debug, Parser)]
 pub struct SearchArgs {
-    /// Search query words.
+    /// Search query to run.
     #[arg(required = true, num_args = 1..)]
     pub query: Vec<String>,
 
-    /// Search workflow to request.
+    /// Type of results to return.
     #[arg(long, value_enum)]
     pub workflow: Option<Workflow>,
 
-    /// API response format.
-    #[arg(long, value_enum, conflicts_with_all = ["json", "markdown"])]
+    /// Format to serialize the API response as.
+    #[arg(long, value_enum)]
     pub format: Option<ApiFormat>,
 
-    /// Request JSON output.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "markdown")]
-    pub json: bool,
-
-    /// Request markdown output.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "json")]
-    pub markdown: bool,
-
-    /// Lens identifier or share URL.
-    #[arg(long = "lens-id")]
+    /// Lens to apply to the search.
+    #[arg(long = "lens_id")]
     pub lens_id: Option<String>,
 
-    /// Raw inline lens JSON object.
-    #[arg(long = "lens-json")]
+    /// Inline lens JSON object to apply to the search.
+    #[arg(long = "lens")]
     pub lens_json: Option<String>,
 
-    /// Domain to include in the inline lens.
-    #[arg(long = "site")]
+    /// Search only these domains in the inline lens.
+    #[arg(long = "lens.sites_included")]
     pub sites_included: Vec<String>,
 
-    /// Domain to exclude in the inline lens.
-    #[arg(long = "exclude-site")]
+    /// Exclude these domains in the inline lens.
+    #[arg(long = "lens.sites_excluded")]
     pub sites_excluded: Vec<String>,
 
-    /// Keyword to include in the inline lens.
-    #[arg(long = "include-keyword")]
+    /// Return only results containing these keywords in the inline lens.
+    #[arg(long = "lens.keywords_included")]
     pub keywords_included: Vec<String>,
 
-    /// Keyword to exclude in the inline lens.
-    #[arg(long = "exclude-keyword")]
+    /// Exclude results containing these keywords in the inline lens.
+    #[arg(long = "lens.keywords_excluded")]
     pub keywords_excluded: Vec<String>,
 
-    /// File type to request in the inline lens.
-    #[arg(long = "file-type")]
+    /// File type to search for in the inline lens.
+    #[arg(long = "lens.file_type")]
     pub file_type: Option<String>,
 
-    /// Lens lower publication or update date bound.
-    #[arg(long = "time-after")]
+    /// Filter for pages updated or published after this date in the inline lens.
+    #[arg(long = "lens.time_after")]
     pub time_after: Option<String>,
 
-    /// Lens upper publication or update date bound.
-    #[arg(long = "time-before")]
+    /// Filter for pages updated or published before this date in the inline lens.
+    #[arg(long = "lens.time_before")]
     pub time_before: Option<String>,
 
-    /// Lens relative time bound.
-    #[arg(long = "time-relative", value_enum)]
+    /// Filter for pages updated or published in a relative interval.
+    #[arg(long = "lens.time_relative", value_enum)]
     pub time_relative: Option<TimeRelative>,
 
-    /// Lens search region.
-    #[arg(long = "search-region")]
+    /// Localize results to a region in the inline lens.
+    #[arg(long = "lens.search_region")]
     pub search_region: Option<String>,
 
-    /// Search timeout in seconds.
+    /// Number of seconds to allow for collecting search results.
     #[arg(long)]
     pub timeout: Option<f64>,
 
-    /// Search results page number.
+    /// Page number for paginated results.
     #[arg(long)]
     pub page: Option<u16>,
 
@@ -109,44 +101,40 @@ pub struct SearchArgs {
     #[arg(long)]
     pub limit: Option<u16>,
 
-    /// Result filter region.
-    #[arg(long)]
+    /// Filter results to a region.
+    #[arg(long = "filters.region")]
     pub region: Option<String>,
 
-    /// Result filter lower date bound.
-    #[arg(long)]
+    /// Filter for results published or updated after this date.
+    #[arg(long = "filters.after")]
     pub after: Option<String>,
 
-    /// Result filter upper date bound.
-    #[arg(long)]
+    /// Filter for results published or updated before this date.
+    #[arg(long = "filters.before")]
     pub before: Option<String>,
 
-    /// Number of top search results to extract.
-    #[arg(long = "extract")]
+    /// Number of search results to extract content from.
+    #[arg(long = "extract.count")]
     pub extract_count: Option<u8>,
 
-    /// Per-page extraction timeout for search results.
-    #[arg(long = "extract-timeout")]
+    /// Timeout in seconds for extraction of each search result page.
+    #[arg(long = "extract.timeout")]
     pub extract_timeout: Option<f64>,
 
-    /// Enables safe search.
-    #[arg(long = "safe-search", action = ArgAction::SetTrue, conflicts_with = "no_safe_search")]
-    pub safe_search: bool,
+    /// Whether safe search is enabled.
+    #[arg(long = "safe_search")]
+    pub safe_search: Option<bool>,
 
-    /// Disables safe search.
-    #[arg(long = "no-safe-search", action = ArgAction::SetTrue, conflicts_with = "safe_search")]
-    pub no_safe_search: bool,
-
-    /// Domain personalization as `domain=kind`.
-    #[arg(long = "domain")]
+    /// Domain personalization rules as `domain=kind`.
+    #[arg(long = "personalizations.domains")]
     pub domains: Vec<String>,
 
-    /// Regex personalization as `regex=replacement`.
-    #[arg(long = "rewrite")]
+    /// Regex personalization rules as `regex=replacement`.
+    #[arg(long = "personalizations.regexes")]
     pub regexes: Vec<String>,
 
     /// Raw personalizations JSON object.
-    #[arg(long = "personalizations-json")]
+    #[arg(long = "personalizations")]
     pub personalizations_json: Option<String>,
 
     /// Raw request JSON object merged after flags.
@@ -157,23 +145,15 @@ pub struct SearchArgs {
 /// Extract endpoint arguments.
 #[derive(Debug, Parser)]
 pub struct ExtractArgs {
-    /// HTTPS URLs to extract.
+    /// Array of pages to extract content from.
     #[arg(required = true, num_args = 1..=10)]
     pub urls: Vec<String>,
 
-    /// API response format.
-    #[arg(long, value_enum, conflicts_with_all = ["json", "markdown"])]
+    /// Format to serialize the API response as.
+    #[arg(long, value_enum)]
     pub format: Option<ApiFormat>,
 
-    /// Request JSON output.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "markdown")]
-    pub json: bool,
-
-    /// Request markdown output.
-    #[arg(long, action = ArgAction::SetTrue, conflicts_with = "json")]
-    pub markdown: bool,
-
-    /// Extraction timeout in seconds.
+    /// Optional timeout in seconds for the extraction operation.
     #[arg(long)]
     pub timeout: Option<f64>,
 

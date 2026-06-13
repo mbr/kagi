@@ -2,7 +2,7 @@
 
 `kagi` is a command-line client for the Kagi Search and Extract APIs.
 
-It is designed for interactive shell use and for coding agents that should use ordinary CLI tools instead of an MCP server. Output defaults to markdown for readability, and `--json` returns raw Kagi API responses for piping into tools like `jq`.
+It is designed for interactive shell use and for coding agents that should use ordinary CLI tools instead of an MCP server. Output defaults to markdown for readability, and `--format json` returns raw Kagi API responses for piping into tools like `jq`.
 
 ## Authentication
 
@@ -22,10 +22,10 @@ Search is invoked through the `search` subcommand:
 kagi search 'rust tokio graceful shutdown' --limit 5
 ```
 
-Markdown is the default output format. Use `--json` for raw API JSON:
+Markdown is the default output format. Use `--format json` for raw API JSON:
 
 ```sh
-kagi search 'rust tokio graceful shutdown' --limit 5 --json | jq '.data.search[] | {title, url}'
+kagi search 'rust tokio graceful shutdown' --limit 5 --format json | jq '.data.search[] | {title, url}'
 ```
 
 Useful search options include:
@@ -33,9 +33,9 @@ Useful search options include:
 ```sh
 kagi search 'query' --workflow news
 kagi search 'query' --page 2 --limit 10
-kagi search 'query' --region DE --after 2026-01-01
-kagi search 'query' --site docs.rs --exclude-site reddit.com
-kagi search 'query' --extract 3
+kagi search 'query' --filters.region DE --filters.after 2026-01-01
+kagi search 'query' --lens.sites_included docs.rs --lens.sites_excluded reddit.com
+kagi search 'query' --extract.count 3
 ```
 
 For less common or newly added API fields, merge raw JSON into the request body:
@@ -53,10 +53,10 @@ kagi extract https://kagi.com/api/docs/openapi.md
 kagi extract https://example.com/a https://example.com/b
 ```
 
-Use `--json` for raw API JSON:
+Use `--format json` for raw API JSON:
 
 ```sh
-kagi extract https://kagi.com/api/docs/openapi.md --json | jq '.data[0].markdown'
+kagi extract https://kagi.com/api/docs/openapi.md --format json | jq '.data[0].markdown'
 ```
 
 ## Development

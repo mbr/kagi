@@ -225,7 +225,7 @@ pub fn search_body(args: &SearchArgs) -> Result<Value, RequestError> {
     let request = SearchRequest {
         query: args.query.join(" "),
         workflow: args.workflow.as_ref().map(|v| v.as_api_value()),
-        format: resolve_format(args.format.as_ref(), args.json, args.markdown),
+        format: resolve_format(args.format.as_ref()),
         lens_id: args.lens_id.clone(),
         lens: lens_body(args)?,
         timeout: args.timeout,
@@ -251,7 +251,7 @@ pub fn extract_body(args: &ExtractArgs) -> Result<Value, RequestError> {
             .map(|url| PageInput { url: url.clone() })
             .collect(),
         timeout: args.timeout,
-        format: resolve_format(args.format.as_ref(), args.json, args.markdown),
+        format: resolve_format(args.format.as_ref()),
     };
     let mut body = serialize_object("extract request", &request)?;
     merge_json_arg(&mut body, "request-json", args.request_json.as_deref())?;
@@ -259,14 +259,8 @@ pub fn extract_body(args: &ExtractArgs) -> Result<Value, RequestError> {
     Ok(Value::Object(body))
 }
 
-/// Resolves mutually exclusive format flags to an API value.
-pub fn resolve_format(format: Option<&ApiFormat>, json: bool, markdown: bool) -> &'static str {
-    if json {
-        return "json";
-    }
-    if markdown {
-        return "markdown";
-    }
+/// Resolves the response format to an API value.
+pub fn resolve_format(format: Option<&ApiFormat>) -> &'static str {
     format.map_or("markdown", ApiFormat::as_api_value)
 }
 
@@ -284,7 +278,7 @@ fn lens_body(args: &SearchArgs) -> Result<Option<Value>, RequestError> {
         search_region: args.search_region.clone(),
     };
     let mut body = serialize_object("lens", &lens)?;
-    merge_json_arg(&mut body, "lens-json", args.lens_json.as_deref())?;
+    merge_json_arg(&mut body, "lens", args.lens_json.as_deref())?;
 
     Ok((!body.is_empty()).then_some(Value::Object(body)))
 }
@@ -311,13 +305,7 @@ fn search_extract_body(args: &SearchArgs) -> Option<SearchExtraction> {
 
 /// Builds the safe search setting when one is explicitly supplied.
 fn safe_search(args: &SearchArgs) -> Option<bool> {
-    if args.safe_search {
-        return Some(true);
-    }
-    if args.no_safe_search {
-        return Some(false);
-    }
-    None
+    args.safe_search
 }
 
 /// Builds personalizations when personalization options are present.
@@ -329,7 +317,7 @@ fn personalizations_body(args: &SearchArgs) -> Result<Option<Value>, RequestErro
     let mut body = serialize_object("personalizations", &personalizations)?;
     merge_json_arg(
         &mut body,
-        "personalizations-json",
+        "personalizations",
         args.personalizations_json.as_deref(),
     )?;
 
@@ -439,8 +427,6 @@ mod tests {
             query: vec!["rust".to_string(), "tokio".to_string()],
             workflow: Some(Workflow::Search),
             format: None,
-            json: false,
-            markdown: false,
             lens_id: None,
             lens_json: None,
             sites_included: vec!["docs.rs".to_string()],
@@ -460,8 +446,7 @@ mod tests {
             before: None,
             extract_count: Some(3),
             extract_timeout: Some(2.0),
-            safe_search: false,
-            no_safe_search: true,
+            safe_search: Some(false),
             domains: vec!["example.com=raise".to_string()],
             regexes: vec!["^https://x=https://y".to_string()],
             personalizations_json: None,
