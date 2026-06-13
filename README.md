@@ -16,17 +16,16 @@ You can override the environment variable name with `--api-key-env`, or pass a k
 
 ## Search
 
-Search can be invoked directly or through the explicit `search` subcommand:
+Search is invoked through the `search` subcommand:
 
 ```sh
-kagi 'rust tokio graceful shutdown' --limit 5
 kagi search 'rust tokio graceful shutdown' --limit 5
 ```
 
 Markdown is the default output format. Use `--json` for raw API JSON:
 
 ```sh
-kagi 'rust tokio graceful shutdown' --limit 5 --json | jq '.data.search[] | {title, url}'
+kagi search 'rust tokio graceful shutdown' --limit 5 --json | jq '.data.search[] | {title, url}'
 ```
 
 Useful search options include:

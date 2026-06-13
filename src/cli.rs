@@ -1,51 +1,10 @@
 //! Command-line interface definition and argument preprocessing.
 
-use std::{env, ffi::OsString};
-
 use clap::{ArgAction, Parser, Subcommand, ValueEnum};
-
-/// Names of commands accepted by the CLI.
-const COMMAND_NAMES: &[&str] = &["search", "extract", "help"];
 
 /// Parses command-line arguments into the application model.
 pub fn parse_args() -> Args {
-    Args::parse_from(default_search_args(env::args_os()))
-}
-
-/// Inserts the `search` command when the invocation uses query shorthand.
-fn default_search_args(args: impl IntoIterator<Item = OsString>) -> Vec<OsString> {
-    let mut args = args.into_iter();
-    let mut normalized = Vec::new();
-    let Some(program) = args.next() else {
-        return normalized;
-    };
-
-    normalized.push(program);
-    let Some(first) = args.next() else {
-        return normalized;
-    };
-
-    if should_insert_search(&first) {
-        normalized.push(OsString::from("search"));
-    }
-    normalized.push(first);
-    normalized.extend(args);
-    normalized
-}
-
-/// Determines whether the first argument is a shorthand search query.
-fn should_insert_search(first: &OsString) -> bool {
-    let first = first.to_string_lossy();
-    if first == "--" {
-        return true;
-    }
-    if first == "-h" || first == "--help" || first == "-V" || first == "--version" {
-        return false;
-    }
-    if first.starts_with('-') {
-        return false;
-    }
-    !COMMAND_NAMES.contains(&first.as_ref())
+    Args::parse()
 }
 
 /// Top-level command-line arguments.
@@ -304,29 +263,5 @@ impl TimeRelative {
             Self::Week => "week",
             Self::Month => "month",
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ffi::OsString;
-
-    use crate::cli::default_search_args;
-
-    /// Converts string arguments into OS strings.
-    fn os_args(args: &[&str]) -> Vec<OsString> {
-        args.iter().map(OsString::from).collect()
-    }
-
-    #[test]
-    fn inserts_default_search_subcommand() {
-        let args = default_search_args(os_args(&["kagi", "rust", "tokio"]));
-        assert_eq!(args, os_args(&["kagi", "search", "rust", "tokio"]));
-    }
-
-    #[test]
-    fn preserves_explicit_subcommand() {
-        let args = default_search_args(os_args(&["kagi", "extract", "https://example.com"]));
-        assert_eq!(args, os_args(&["kagi", "extract", "https://example.com"]));
     }
 }
