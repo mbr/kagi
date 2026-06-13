@@ -12,7 +12,7 @@ Set `KAGI_API_KEY` in the environment:
 export KAGI_API_KEY=...
 ```
 
-You can override the environment variable name with `--api-key-env`, or pass a key directly with `--api-key`.
+You can also pass a key directly with `--api-key`.
 
 ## Search
 

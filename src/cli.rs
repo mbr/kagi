@@ -10,17 +10,21 @@ pub struct Args {
     #[arg(long, default_value = "https://kagi.com/api/v1", global = true)]
     pub base_url: String,
 
-    /// Environment variable that stores the Kagi API key.
-    #[arg(long, default_value = "KAGI_API_KEY", global = true)]
-    pub api_key_env: String,
-
-    /// Kagi API key literal.
-    #[arg(long, global = true)]
+    /// Kagi API key literal or `KAGI_API_KEY` environment value.
+    #[arg(long, env = "KAGI_API_KEY", hide_env_values = true, value_parser = parse_api_key, global = true)]
     pub api_key: Option<String>,
 
     /// Command to execute.
     #[command(subcommand)]
     pub command: Command,
+}
+
+/// Parses a non-empty API key.
+fn parse_api_key(value: &str) -> Result<String, String> {
+    if value.is_empty() {
+        return Err("API key must not be empty".to_string());
+    }
+    Ok(value.to_string())
 }
 
 /// Kagi API operations.

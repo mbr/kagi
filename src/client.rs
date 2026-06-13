@@ -1,9 +1,6 @@
 //! HTTP client execution for Kagi API commands.
 
-use std::{
-    env,
-    io::{self, Write},
-};
+use std::io::{self, Write};
 
 use reqwest::{Client, StatusCode};
 use serde_json::Value;
@@ -17,23 +14,9 @@ use crate::{
 /// Errors raised while executing API requests.
 #[derive(Debug, Error)]
 pub enum ClientError {
-    /// The configured API key source was empty.
-    #[error("Kagi API key is required; pass --api-key or set ${env_var}")]
-    MissingApiKey {
-        /// Environment variable that was checked for the API key.
-        env_var: String,
-    },
-
-    /// The configured API key environment variable could not be read.
-    #[error("failed to read ${env_var}: {source}")]
-    ApiKeyEnv {
-        /// Environment variable that was checked for the API key.
-        env_var: String,
-
-        /// Underlying environment variable error.
-        #[source]
-        source: env::VarError,
-    },
+    /// The Kagi API key was not provided.
+    #[error("Kagi API key is required; pass --api-key or set $KAGI_API_KEY")]
+    MissingApiKey,
 
     /// Request body construction failed.
     #[error("request body failed: {source}")]
@@ -76,7 +59,9 @@ impl From<RequestError> for ClientError {
 
 /// Executes the requested command.
 pub async fn run(args: Args) -> Result<(), ClientError> {
-    let api_key = api_key(&args)?;
+    let Some(api_key) = args.api_key.as_deref() else {
+        return Err(ClientError::MissingApiKey);
+    };
     let client = Client::new();
 
     match args.command {
@@ -85,7 +70,7 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
                 &client,
                 &args.base_url,
                 "/search",
-                &api_key,
+                api_key,
                 search_body(&search)?,
             )
             .await?;
@@ -95,7 +80,7 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
                 &client,
                 &args.base_url,
                 "/extract",
-                &api_key,
+                api_key,
                 extract_body(&extract)?,
             )
             .await?;
@@ -103,24 +88,6 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
     }
 
     Ok(())
-}
-
-/// Resolves the API key from CLI arguments or the environment.
-fn api_key(args: &Args) -> Result<String, ClientError> {
-    if let Some(api_key) = args.api_key.as_ref().filter(|value| !value.is_empty()) {
-        return Ok(api_key.clone());
-    }
-
-    match env::var(&args.api_key_env) {
-        Ok(value) if !value.is_empty() => Ok(value),
-        Ok(_) | Err(env::VarError::NotPresent) => Err(ClientError::MissingApiKey {
-            env_var: args.api_key_env.clone(),
-        }),
-        Err(source) => Err(ClientError::ApiKeyEnv {
-            env_var: args.api_key_env.clone(),
-            source,
-        }),
-    }
 }
 
 /// Sends a JSON request to an API path and writes the raw response.
