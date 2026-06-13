@@ -1,0 +1,78 @@
+# kagi
+
+`kagi` is a command-line client for the Kagi Search and Extract APIs.
+
+It is designed for interactive shell use and for coding agents that should use ordinary CLI tools instead of an MCP server. Output defaults to markdown for readability, and `--json` returns raw Kagi API responses for piping into tools like `jq`.
+
+## Authentication
+
+Set `KAGI_API_KEY` in the environment:
+
+```sh
+export KAGI_API_KEY=...
+```
+
+You can override the environment variable name with `--api-key-env`, or pass a key directly with `--api-key`.
+
+## Search
+
+Search can be invoked directly or through the explicit `search` subcommand:
+
+```sh
+kagi 'rust tokio graceful shutdown' --limit 5
+kagi search 'rust tokio graceful shutdown' --limit 5
+```
+
+Markdown is the default output format. Use `--json` for raw API JSON:
+
+```sh
+kagi 'rust tokio graceful shutdown' --limit 5 --json | jq '.data.search[] | {title, url}'
+```
+
+Useful search options include:
+
+```sh
+kagi search 'query' --workflow news
+kagi search 'query' --page 2 --limit 10
+kagi search 'query' --region DE --after 2026-01-01
+kagi search 'query' --site docs.rs --exclude-site reddit.com
+kagi search 'query' --extract 3
+```
+
+For less common or newly added API fields, merge raw JSON into the request body:
+
+```sh
+kagi search 'query' --request-json '{"safe_search":false}'
+```
+
+## Extract
+
+Extract markdown from up to ten HTTPS URLs:
+
+```sh
+kagi extract https://kagi.com/api/docs/openapi.md
+kagi extract https://example.com/a https://example.com/b
+```
+
+Use `--json` for raw API JSON:
+
+```sh
+kagi extract https://kagi.com/api/docs/openapi.md --json | jq '.data[0].markdown'
+```
+
+## Development
+
+Enter the development environment through `direnv` or `nix develop`, then run:
+
+```sh
+./check.sh
+./format.sh
+```
+
+Build a release binary with:
+
+```sh
+cargo build --release
+```
+
+For use by `pi`, copy the release binary to `~/.pi/agent/bin/kagi`.
