@@ -67,6 +67,10 @@ Use `--format json` for raw API JSON:
 kagi extract https://kagi.com/api/docs/openapi.md --format json | jq '.data[0].markdown'
 ```
 
+## License
+
+Licensed under either of `Apache-2.0` or `MIT`, at your option.
+
 ## Development
 
 Enter the development environment through `direnv` or `nix develop`, then run:
