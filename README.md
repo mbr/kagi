@@ -57,7 +57,6 @@ kagi search 'query' --request-json '{"safe_search":false}'
 Extract markdown from up to ten HTTPS URLs:
 
 ```sh
-kagi extract https://kagi.com/api/docs/openapi.md
 kagi extract https://example.com/a https://example.com/b
 ```
 
