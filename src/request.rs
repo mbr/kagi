@@ -107,7 +107,7 @@ pub fn resolve_format(
     if markdown {
         return Some("markdown");
     }
-    format.map(ApiFormat::as_api_value)
+    Some(format.map_or("markdown", ApiFormat::as_api_value))
 }
 
 /// Builds the inline lens object when lens options are present.
@@ -269,7 +269,7 @@ mod tests {
             query: vec!["rust".to_string(), "tokio".to_string()],
             workflow: Some(Workflow::Search),
             format: None,
-            json: true,
+            json: false,
             markdown: false,
             lens_id: None,
             lens_json: None,
@@ -303,7 +303,7 @@ mod tests {
     fn builds_search_body_from_flags() {
         let body = search_body(&search_args()).expect("search body should build");
         assert_eq!(body["query"], "rust tokio");
-        assert_eq!(body["format"], "json");
+        assert_eq!(body["format"], "markdown");
         assert_eq!(body["lens"]["sites_included"][0], "docs.rs");
         assert_eq!(body["filters"]["region"], "DE");
         assert_eq!(body["extract"]["count"], 3);
