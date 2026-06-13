@@ -1,7 +1,5 @@
 //! HTTP client execution for Kagi API commands.
 
-use std::io::{self, Write};
-
 use reqwest::{Client as HttpClient, StatusCode};
 use sec::Secret;
 use serde_json::Value;
@@ -42,15 +40,7 @@ pub enum ClientError {
         status: StatusCode,
 
         /// Response body returned by Kagi.
-        body: Vec<u8>,
-    },
-
-    /// Response output could not be written.
-    #[error("failed to write response: {source}")]
-    Output {
-        /// Underlying output error.
-        #[source]
-        source: io::Error,
+        body: String,
     },
 }
 
@@ -84,17 +74,17 @@ impl KagiClient {
     }
 
     /// Performs a search request.
-    pub async fn search(&self, args: &SearchArgs) -> Result<Vec<u8>, ClientError> {
+    pub async fn search(&self, args: &SearchArgs) -> Result<String, ClientError> {
         self.post("/search", search_body(args)?).await
     }
 
     /// Performs an extraction request.
-    pub async fn extract(&self, args: &ExtractArgs) -> Result<Vec<u8>, ClientError> {
+    pub async fn extract(&self, args: &ExtractArgs) -> Result<String, ClientError> {
         self.post("/extract", extract_body(args)?).await
     }
 
     /// Sends a JSON request to an API path and returns the raw response.
-    async fn post(&self, path: &str, body: Value) -> Result<Vec<u8>, ClientError> {
+    async fn post(&self, path: &str, body: Value) -> Result<String, ClientError> {
         let response = self
             .http
             .post(self.endpoint(path))
@@ -105,11 +95,10 @@ impl KagiClient {
             .map_err(|source| ClientError::Http { source })?;
 
         let status = response.status();
-        let bytes = response
-            .bytes()
+        let body = response
+            .text()
             .await
             .map_err(|source| ClientError::Http { source })?;
-        let body = bytes.to_vec();
 
         if !status.is_success() {
             return Err(ClientError::Status { status, body });
@@ -137,40 +126,20 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
     };
 
     match result {
-        Ok(body) => write_stdout(&body),
+        Ok(body) => {
+            println!("{}", normalize_output(&body));
+            Ok(())
+        }
         Err(error) => {
             if let ClientError::Status { body, .. } = &error {
-                write_stderr(body)?;
+                eprintln!("{}", normalize_output(body));
             }
             Err(error)
         }
     }
 }
 
-/// Writes response bytes to standard output.
-fn write_stdout(bytes: &[u8]) -> Result<(), ClientError> {
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
-    stdout
-        .write_all(bytes)
-        .and_then(|()| maybe_write_newline(&mut stdout, bytes))
-        .map_err(|source| ClientError::Output { source })
-}
-
-/// Writes error response bytes to standard error.
-fn write_stderr(bytes: &[u8]) -> Result<(), ClientError> {
-    let stderr = io::stderr();
-    let mut stderr = stderr.lock();
-    stderr
-        .write_all(bytes)
-        .and_then(|()| maybe_write_newline(&mut stderr, bytes))
-        .map_err(|source| ClientError::Output { source })
-}
-
-/// Writes a final newline when the response does not already include one.
-fn maybe_write_newline(writer: &mut impl Write, bytes: &[u8]) -> io::Result<()> {
-    if !bytes.ends_with(b"\n") {
-        writer.write_all(b"\n")?;
-    }
-    Ok(())
+/// Removes trailing line endings before printing output.
+fn normalize_output(body: &str) -> &str {
+    body.trim_end_matches(['\r', '\n'])
 }
