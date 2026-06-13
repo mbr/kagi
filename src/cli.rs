@@ -1,6 +1,7 @@
 //! Command-line interface definition and argument preprocessing.
 
 use clap::{ArgAction, Parser, Subcommand, ValueEnum};
+use sec::Secret;
 
 /// Top-level command-line arguments.
 #[derive(Debug, Parser)]
@@ -12,7 +13,7 @@ pub struct Args {
 
     /// Kagi API key literal or `KAGI_API_KEY` environment value.
     #[arg(long, env = "KAGI_API_KEY", hide_env_values = true, value_parser = parse_api_key, global = true)]
-    pub api_key: Option<String>,
+    pub api_key: Option<Secret<String>>,
 
     /// Command to execute.
     #[command(subcommand)]
@@ -20,11 +21,11 @@ pub struct Args {
 }
 
 /// Parses a non-empty API key.
-fn parse_api_key(value: &str) -> Result<String, String> {
+fn parse_api_key(value: &str) -> Result<Secret<String>, String> {
     if value.is_empty() {
         return Err("API key must not be empty".to_string());
     }
-    Ok(value.to_string())
+    Ok(Secret::new(value.to_string()))
 }
 
 /// Kagi API operations.
