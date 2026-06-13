@@ -5,11 +5,11 @@ mod client;
 mod request;
 
 use anyhow::Result;
+use clap::Parser;
 
 /// Runs the command-line application.
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = cli::parse_args();
-    client::run(args).await?;
+    client::run(cli::Args::parse()).await?;
     Ok(())
 }

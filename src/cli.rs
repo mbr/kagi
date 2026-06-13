@@ -2,11 +2,6 @@
 
 use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 
-/// Parses command-line arguments into the application model.
-pub fn parse_args() -> Args {
-    Args::parse()
-}
-
 /// Top-level command-line arguments.
 #[derive(Debug, Parser)]
 #[command(version, about)]
