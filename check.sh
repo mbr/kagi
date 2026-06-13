@@ -8,4 +8,5 @@ echo "rustc $(rustc --version) at $(which rustc), cargo $(cargo --version) at $(
 
 ./format.sh --check
 RUSTFLAGS="-D warnings" cargo check
+cargo test
 cargo clippy -- -D warnings
