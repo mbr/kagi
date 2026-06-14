@@ -62,6 +62,12 @@
           }
         );
 
+        packages.piExtension = pkgs.runCommand "kagi-pi-extension-${cargoToml.package.version}" { } ''
+          mkdir -p "$out/share/pi/extensions"
+          cp ${./extensions/kagi-cli-prompt.ts} \
+            "$out/share/pi/extensions/kagi-cli-prompt.ts"
+        '';
+
         devShells.default = pkgs.mkShell (
           rustEnv
           // {
@@ -80,5 +86,49 @@
           };
         };
       }
-    );
+    )
+    // {
+      homeManagerModules.default =
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
+        let
+          cfg = config.programs.kagi;
+          system = pkgs.stdenv.hostPlatform.system;
+        in
+        {
+          options.programs.kagi = {
+            enable = lib.mkEnableOption "Kagi command-line client";
+
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${system}.default;
+              defaultText = lib.literalExpression "inputs.kagi.packages.\${pkgs.stdenv.hostPlatform.system}.default";
+              description = "Kagi CLI package to install.";
+            };
+
+            piExtension = {
+              enable = lib.mkEnableOption "Kagi Pi prompt extension";
+
+              package = lib.mkOption {
+                type = lib.types.package;
+                default = self.packages.${system}.piExtension;
+                defaultText = lib.literalExpression "inputs.kagi.packages.\${pkgs.stdenv.hostPlatform.system}.piExtension";
+                description = "Kagi Pi extension package to install.";
+              };
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            home.packages = [ cfg.package ];
+
+            home.file.".pi/agent/extensions/kagi-cli-prompt.ts" = lib.mkIf cfg.piExtension.enable {
+              source = "${cfg.piExtension.package}/share/pi/extensions/kagi-cli-prompt.ts";
+            };
+          };
+        };
+    };
 }

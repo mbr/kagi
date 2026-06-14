@@ -66,6 +66,21 @@ Use `--format json` for raw API JSON:
 kagi extract https://kagi.com/api/docs/openapi.md --format json | jq '.data[0].markdown'
 ```
 
+## Nix
+
+The flake exposes the CLI as `packages.default` and the Pi prompt extension as `packages.piExtension`.
+
+For Home Manager, import `homeManagerModules.default` and enable:
+
+```nix
+programs.kagi = {
+  enable = true;
+  piExtension.enable = true;
+};
+```
+
+The Pi extension only teaches agents how to use the local `kagi` CLI; it does not configure authentication.
+
 ## License
 
 Licensed under either of `Apache-2.0` or `MIT`, at your option.
