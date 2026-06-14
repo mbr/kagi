@@ -68,14 +68,14 @@ kagi extract https://kagi.com/api/docs/openapi.md --format json | jq '.data[0].m
 
 ## Nix
 
-The flake exposes the CLI as `packages.default` and the Pi prompt extension as `packages.piExtension`.
+The flake exposes the CLI as `packages.default` and the Pi prompt extension as `piExtensions.default`.
 
 For Home Manager, import `homeManagerModules.default` and enable:
 
 ```nix
 programs.kagi = {
   enable = true;
-  piExtension.enable = true;
+  enablePiExtension = true;
 };
 ```
 
