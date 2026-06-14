@@ -76,8 +76,11 @@ For Home Manager, import `homeManagerModules.default` and enable:
 programs.kagi = {
   enable = true;
   enablePiExtension = true;
+  apiKeyFile = "/run/secrets/kagi-api-key";
 };
 ```
+
+Use either `apiKeyFile` or `apiKey` to install `~/.config/kagi/api-key`; the options are mutually exclusive. `apiKey` stores the token in the Nix store, so prefer `apiKeyFile` for managed secrets.
 
 The Pi extension only teaches agents how to use the local `kagi` CLI; it does not configure authentication.
 

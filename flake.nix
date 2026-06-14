@@ -107,15 +107,52 @@
             };
 
             enablePiExtension = lib.mkEnableOption "the Kagi Pi prompt extension";
-          };
 
-          config = lib.mkIf cfg.enable {
-            home.packages = [ cfg.package ];
+            apiKey = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                Kagi API key to write to the CLI configuration file.
 
-            home.file.".pi/agent/extensions/kagi-cli-prompt.ts" = lib.mkIf cfg.enablePiExtension {
-              source = self.piExtensions.default;
+                This value is stored in the Nix store. Prefer
+                `programs.kagi.apiKeyFile` for secrets managed outside Nix.
+              '';
+            };
+
+            apiKeyFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              description = ''
+                Path to a file containing the Kagi API key. The path is linked
+                without copying the secret into the Nix store.
+              '';
             };
           };
+
+          config = lib.mkIf cfg.enable (
+            lib.mkMerge [
+              {
+                assertions = [
+                  {
+                    assertion = cfg.apiKey == null || cfg.apiKeyFile == null;
+                    message = "programs.kagi.apiKey and programs.kagi.apiKeyFile are mutually exclusive.";
+                  }
+                ];
+
+                home.packages = [ cfg.package ];
+
+                home.file.".pi/agent/extensions/kagi-cli-prompt.ts" = lib.mkIf cfg.enablePiExtension {
+                  source = self.piExtensions.default;
+                };
+              }
+              (lib.mkIf (cfg.apiKey != null) {
+                home.file.".config/kagi/api-key".text = "${cfg.apiKey}\n";
+              })
+              (lib.mkIf (cfg.apiKeyFile != null) {
+                home.file.".config/kagi/api-key".source = config.lib.file.mkOutOfStoreSymlink cfg.apiKeyFile;
+              })
+            ]
+          );
         };
     };
 }
