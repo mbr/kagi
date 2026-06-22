@@ -8,7 +8,7 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    cli::{Args, Command, ExtractArgs, SearchArgs},
+    cli::{ApiFormat, Args, Command, ExtractArgs, SearchArgs},
     request::{RequestError, extract_body, search_body},
 };
 
@@ -90,7 +90,13 @@ impl KagiClient {
 
     /// Performs a search request.
     pub async fn search(&self, args: &SearchArgs) -> Result<String, ClientError> {
-        self.post("/search", search_body(args)?).await
+        match self.post("/search", search_body(args)?).await {
+            Ok(body) => Ok(body),
+            Err(error) if is_empty_markdown_search_not_found(args, &error) => {
+                Ok("No results.".to_string())
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Performs an extraction request.
@@ -126,6 +132,16 @@ impl KagiClient {
     fn endpoint(&self, path: &str) -> String {
         format!("{}{}", self.base_url.trim_end_matches('/'), path)
     }
+}
+
+/// Detects an empty markdown search response reported as missing.
+fn is_empty_markdown_search_not_found(args: &SearchArgs, error: &ClientError) -> bool {
+    matches!(args.format.as_ref(), None | Some(ApiFormat::Markdown))
+        && matches!(
+            error,
+            ClientError::Status { status, body }
+                if *status == StatusCode::NOT_FOUND && body.trim().is_empty()
+        )
 }
 
 /// Resolves the API key from arguments, environment, or configuration.
@@ -174,5 +190,84 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
             }
             Err(error)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use reqwest::StatusCode;
+
+    use crate::{
+        cli::{ApiFormat, SearchArgs},
+        client::{ClientError, is_empty_markdown_search_not_found},
+    };
+
+    /// Returns search arguments for client behavior tests.
+    fn search_args(format: Option<ApiFormat>) -> SearchArgs {
+        SearchArgs {
+            query: vec!["nothing".to_string()],
+            workflow: None,
+            format,
+            lens_id: None,
+            lens_json: None,
+            sites_included: Vec::new(),
+            sites_excluded: Vec::new(),
+            keywords_included: Vec::new(),
+            keywords_excluded: Vec::new(),
+            file_type: None,
+            time_after: None,
+            time_before: None,
+            time_relative: None,
+            search_region: None,
+            timeout: None,
+            page: None,
+            limit: None,
+            region: None,
+            after: None,
+            before: None,
+            extract_count: None,
+            extract_timeout: None,
+            safe_search: None,
+            domains: Vec::new(),
+            regexes: Vec::new(),
+            personalizations_json: None,
+            request_json: None,
+        }
+    }
+
+    /// Returns a status error with the given status and body.
+    fn status_error(status: StatusCode, body: &str) -> ClientError {
+        ClientError::Status {
+            status,
+            body: body.to_string(),
+        }
+    }
+
+    #[test]
+    fn treats_empty_markdown_search_404_as_no_results() {
+        assert!(is_empty_markdown_search_not_found(
+            &search_args(None),
+            &status_error(StatusCode::NOT_FOUND, "")
+        ));
+        assert!(is_empty_markdown_search_not_found(
+            &search_args(Some(ApiFormat::Markdown)),
+            &status_error(StatusCode::NOT_FOUND, "\n")
+        ));
+    }
+
+    #[test]
+    fn keeps_other_status_errors() {
+        assert!(!is_empty_markdown_search_not_found(
+            &search_args(Some(ApiFormat::Json)),
+            &status_error(StatusCode::NOT_FOUND, "")
+        ));
+        assert!(!is_empty_markdown_search_not_found(
+            &search_args(None),
+            &status_error(StatusCode::BAD_REQUEST, "")
+        ));
+        assert!(!is_empty_markdown_search_not_found(
+            &search_args(None),
+            &status_error(StatusCode::NOT_FOUND, "not found")
+        ));
     }
 }
