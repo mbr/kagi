@@ -4,12 +4,12 @@ use std::{fs, io, path::PathBuf};
 
 use reqwest::{Client as HttpClient, StatusCode};
 use sec::Secret;
-use serde_json::Value;
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::{
     assistant::{AssistantError, ChatClient},
-    cli::{ApiFormat, Args, AskArgs, Command, ExtractArgs, SearchArgs},
+    cli::{ApiFormat, Args, AskArgs, ExtractArgs, SearchArgs},
     request::{RequestError, ask_extract_body, extract_body, search_body},
     source::{self, SourceError, Sources},
 };
@@ -19,7 +19,7 @@ use crate::{
 pub enum ClientError {
     /// The Kagi API key was not provided.
     #[error(
-        "Kagi API key is required; pass --api-key, set $KAGI_API_KEY, or write ~/.config/kagi/api-key"
+        "Kagi API key is required; pass --api-key or --api-key-file, set $KAGI_API_KEY, or write ~/.config/kagi/api-key"
     )]
     MissingApiKey,
 
@@ -117,9 +117,14 @@ impl KagiClient {
         }
     }
 
+    /// Creates a client using the configured upstream URL and API key lookup.
+    pub fn from_args(args: &Args) -> Result<Self, ClientError> {
+        Ok(Self::new(args.base_url.clone(), api_key(args)?))
+    }
+
     /// Performs a search request.
     pub async fn search(&self, args: &SearchArgs) -> Result<String, ClientError> {
-        match self.post("/search", search_body(args)?).await {
+        match self.search_request(&search_body(args)?).await {
             Ok(body) => Ok(body),
             Err(error) if is_empty_markdown_search_not_found(args, &error) => {
                 Ok("No results.".to_string())
@@ -128,20 +133,25 @@ impl KagiClient {
         }
     }
 
+    /// Searches using a structured upstream request body.
+    pub async fn search_request(&self, body: &impl Serialize) -> Result<String, ClientError> {
+        self.post("/search", body).await
+    }
+
     /// Performs an extraction request.
     pub async fn extract(&self, args: &ExtractArgs) -> Result<String, ClientError> {
-        self.post("/extract", extract_body(args)?).await
+        self.post("/extract", &extract_body(args)?).await
     }
 
     /// Extracts and validates every page requested for an answer.
     pub async fn extract_sources(&self, args: &AskArgs) -> Result<Sources, ClientError> {
-        let body = self.post("/extract", ask_extract_body(args)?).await?;
+        let body = self.post("/extract", &ask_extract_body(args)?).await?;
         source::prepare(&body, args.extra_urls.len() + 1)
             .map_err(|source| ClientError::Sources { source })
     }
 
     /// Sends a JSON request to an API path and returns the raw response.
-    async fn post(&self, path: &str, body: Value) -> Result<String, ClientError> {
+    async fn post(&self, path: &str, body: &impl Serialize) -> Result<String, ClientError> {
         let response = self
             .http
             .post(self.endpoint(path))
@@ -181,7 +191,7 @@ fn is_empty_markdown_search_not_found(args: &SearchArgs, error: &ClientError) ->
 }
 
 /// Extracts sources, optionally saves them, and asks the independent chat API.
-async fn ask(
+pub async fn ask(
     client: &KagiClient,
     chat: &ChatClient,
     args: &AskArgs,
@@ -207,55 +217,33 @@ async fn ask(
 /// Resolves the API key from arguments, environment, or configuration.
 fn api_key(args: &Args) -> Result<Secret<String>, ClientError> {
     if let Some(api_key) = args.api_key.clone() {
+        if api_key.reveal_str().trim().is_empty() {
+            return Err(ClientError::MissingApiKey);
+        }
         return Ok(api_key);
     }
 
-    let Some(config_dir) = dirs::config_dir() else {
-        return Err(ClientError::MissingApiKey);
+    let path = match &args.api_key_file {
+        Some(path) => path.clone(),
+        None => dirs::config_dir()
+            .ok_or(ClientError::MissingApiKey)?
+            .join("kagi")
+            .join("api-key"),
     };
-    let path = config_dir.join("kagi").join("api-key");
     let key = match fs::read_to_string(&path) {
         Ok(key) => key,
-        Err(source) if source.kind() == io::ErrorKind::NotFound => {
+        Err(source) if source.kind() == io::ErrorKind::NotFound && args.api_key_file.is_none() => {
             return Err(ClientError::MissingApiKey);
         }
         Err(source) => return Err(ClientError::ApiKeyFile { path, source }),
     };
 
     let key = key.trim_end_matches(['\r', '\n']).to_string();
-    if key.is_empty() {
+    if key.trim().is_empty() {
         return Err(ClientError::MissingApiKey);
     }
 
     Ok(Secret::new(key))
-}
-
-/// Executes the requested command.
-pub async fn run(args: Args) -> Result<(), ClientError> {
-    let client = KagiClient::new(args.base_url.clone(), api_key(&args)?);
-
-    let result = match &args.command {
-        Command::Search(search) => client.search(search).await,
-        Command::Extract(extract) => client.extract(extract).await,
-        Command::Ask(args) => {
-            let chat =
-                ChatClient::from_env().map_err(|source| ClientError::Assistant { source })?;
-            ask(&client, &chat, args).await
-        }
-    };
-
-    match result {
-        Ok(body) => {
-            println!("{}", body.trim_end_matches(['\r', '\n']));
-            Ok(())
-        }
-        Err(error) => {
-            if let ClientError::Status { body, .. } = &error {
-                eprintln!("{body}");
-            }
-            Err(error)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -274,10 +262,42 @@ mod tests {
 
     use crate::{
         assistant::ChatClient,
-        cli::{ApiFormat, Args, Command, SearchArgs},
-        client::{ClientError, KagiClient, ask, is_empty_markdown_search_not_found},
+        cli::{ApiFormat, Args, Command, SearchArgs, ServeArgs},
+        client::{ClientError, KagiClient, api_key, ask, is_empty_markdown_search_not_found},
         source::SourceError,
     };
+
+    /// Reads runtime credentials without consulting or modifying the user's key.
+    #[test]
+    fn selected_key_file_is_trimmed_and_never_falls_back() {
+        let directory = tempdir().expect("temporary credential directory");
+        let path = directory.path().join("api-key");
+        let mut args = Args {
+            base_url: "http://unused".into(),
+            api_key: None,
+            api_key_file: Some(path.clone()),
+            command: Command::Serve(ServeArgs {
+                listen_address: "127.0.0.1:3000".parse().expect("socket address"),
+                log_filter: "info".into(),
+            }),
+        };
+        assert!(matches!(
+            api_key(&args),
+            Err(ClientError::ApiKeyFile { .. })
+        ));
+        fs::write(&path, "file-key\r\n").expect("write fixture credential");
+        assert_eq!(api_key(&args).expect("file key").reveal_str(), "file-key");
+        args.api_key = Some(Secret::new("explicit-key".into()));
+        assert_eq!(
+            api_key(&args).expect("explicit key").reveal_str(),
+            "explicit-key"
+        );
+        args.api_key = Some(Secret::new(String::new()));
+        assert!(matches!(api_key(&args), Err(ClientError::MissingApiKey)));
+        args.api_key = None;
+        fs::write(&path, " \n").expect("write empty credential");
+        assert!(matches!(api_key(&args), Err(ClientError::MissingApiKey)));
+    }
 
     /// Returns search arguments for client behavior tests.
     fn search_args(format: Option<ApiFormat>) -> SearchArgs {
@@ -345,6 +365,33 @@ mod tests {
         assert!(!is_empty_markdown_search_not_found(
             &search_args(None),
             &status_error(StatusCode::NOT_FOUND, "not found")
+        ));
+    }
+
+    /// Keeps empty markdown handling separate from structured search failures.
+    #[tokio::test]
+    async fn handles_empty_search_responses_only_for_markdown() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/search"))
+            .respond_with(ResponseTemplate::new(404).set_body_string(""))
+            .expect(2)
+            .mount(&server)
+            .await;
+        let client = KagiClient::new(server.uri(), Secret::new("test-key".into()));
+        assert_eq!(
+            client
+                .search(&search_args(None))
+                .await
+                .expect("empty markdown"),
+            "No results."
+        );
+        assert!(matches!(
+            client.search(&search_args(Some(ApiFormat::Json))).await,
+            Err(ClientError::Status {
+                status: StatusCode::NOT_FOUND,
+                ..
+            })
         ));
     }
 

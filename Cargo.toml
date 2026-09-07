@@ -1,6 +1,6 @@
 [package]
 name = "kagi"
-description = "Command-line client for the Kagi API"
+description = "Kagi API client and Perplexity-compatible search server"
 license = "MIT OR Apache-2.0"
 version = "0.1.0"
 edition = "2024"
@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.98"
 async-openai = { version = "0.41.3", default-features = false, features = ["chat-completion", "middleware", "rustls"] }
+axum = "0.8.4"
 clap = { version = "4.5.40", features = ["derive", "env"] }
 dirs = "6.0.0"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
@@ -15,8 +16,13 @@ sec = "1.0.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 thiserror = "2.0.12"
-tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1.45.1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = "0.7.15"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+uuid = { version = "1.17.0", features = ["v7"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
+tokio = { version = "1.45.1", features = ["test-util"] }
 wiremock = "0.6.5"

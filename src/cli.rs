@@ -1,6 +1,6 @@
 //! Command-line interface definitions.
 
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use sec::Secret;
@@ -10,12 +10,21 @@ use sec::Secret;
 #[command(version, about)]
 pub struct Args {
     /// Kagi API base URL.
-    #[arg(long, default_value = "https://kagi.com/api/v1", global = true)]
+    #[arg(
+        long,
+        env = "KAGI_BASE_URL",
+        default_value = "https://kagi.com/api/v1",
+        global = true
+    )]
     pub base_url: String,
 
     /// Kagi API key literal or `KAGI_API_KEY` environment value.
     #[arg(long, env = "KAGI_API_KEY", hide_env_values = true, global = true)]
     pub api_key: Option<Secret<String>>,
+
+    /// File containing the Kagi API key, instead of the user configuration file.
+    #[arg(long, env = "KAGI_API_KEY_FILE", global = true)]
+    pub api_key_file: Option<PathBuf>,
 
     /// Command to execute.
     #[command(subcommand)]
@@ -33,6 +42,21 @@ pub enum Command {
 
     /// Answer a question about the content of one or more pages.
     Ask(AskArgs),
+
+    /// Serve the Perplexity-compatible search API without inbound authentication.
+    Serve(ServeArgs),
+}
+
+/// HTTP server configuration.
+#[derive(Debug, Parser)]
+pub struct ServeArgs {
+    /// TCP socket address to listen on; only expose to trusted clients.
+    #[arg(long, env = "KAGI_LISTEN_ADDRESS", default_value = "127.0.0.1:3000")]
+    pub listen_address: SocketAddr,
+
+    /// Tracing filter for server logs.
+    #[arg(long, env = "RUST_LOG", default_value = "info")]
+    pub log_filter: String,
 }
 
 /// Search endpoint arguments.

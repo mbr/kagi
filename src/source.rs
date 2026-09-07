@@ -3,6 +3,8 @@
 use serde::Deserialize;
 use thiserror::Error;
 
+use crate::response::KagiResponse;
+
 /// Errors that prevent answering from a complete set of sources.
 #[derive(Debug, Error)]
 pub enum SourceError {
@@ -45,26 +47,6 @@ pub enum SourceError {
     },
 }
 
-/// JSON extraction envelope, excluding unstable debugging metadata.
-#[derive(Deserialize)]
-struct ExtractionResponse {
-    /// Extracted pages, absent on some failures.
-    data: Option<Vec<Page>>,
-
-    /// Endpoint-level extraction failures.
-    errors: Option<Vec<ExtractionError>>,
-}
-
-/// Endpoint-level failure reported by Kagi.
-#[derive(Deserialize)]
-struct ExtractionError {
-    /// Namespaced failure code.
-    code: String,
-
-    /// Optional human-readable explanation.
-    message: Option<String>,
-}
-
 /// Content or failure returned for an individual source.
 #[derive(Deserialize)]
 struct Page {
@@ -89,7 +71,7 @@ pub struct Sources {
 
 /// Validates pages and labels their content and URLs with matching identifiers.
 pub fn prepare(body: &str, expected: usize) -> Result<Sources, SourceError> {
-    let response: ExtractionResponse =
+    let response: KagiResponse<Vec<Page>> =
         serde_json::from_str(body).map_err(|source| SourceError::InvalidJson { source })?;
     if let Some(error) = response.errors.unwrap_or_default().into_iter().next() {
         return Err(SourceError::Extraction {

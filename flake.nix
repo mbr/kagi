@@ -15,6 +15,9 @@
       fenix,
       flake-utils,
     }:
+    let
+      appModule = import ./nixos-module.nix { inherit self; };
+    in
     flake-utils.lib.eachDefaultSystem (
       system:
       let
@@ -48,6 +51,15 @@
         };
       in
       {
+        checks = {
+          default = self.packages.${system}.default;
+        }
+        // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+          nixos-module-integration = pkgs.testers.runNixOSTest (
+            import ./nixos-test.nix { inherit appModule; }
+          );
+        };
+
         packages.default = platform.buildRustPackage (
           rustEnv
           // rec {
@@ -55,6 +67,9 @@
             version = cargoToml.package.version;
             description = cargoToml.package.description;
             nativeBuildInputs = with pkgs; [ llvmPackages.bintools ];
+
+            # The system TLS verifier needs a trust store even for HTTP tests.
+            SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
 
             src = pkgs.lib.cleanSource ./.;
 
@@ -75,18 +90,11 @@
             RUST_LOG = "debug";
           }
         );
-
-        packages.docker = pkgs.dockerTools.buildImage {
-          name = cargoToml.package.name;
-          tag = cargoToml.package.version;
-
-          config = {
-            Cmd = [ (pkgs.lib.getExe self.packages.${system}.default) ];
-          };
-        };
       }
     )
     // {
+      nixosModules.default = appModule;
+
       piExtensions.default = "${self.outPath}/extensions/kagi-cli-prompt.ts";
 
       homeManagerModules.default =
