@@ -135,7 +135,7 @@ impl KagiClient {
             })?;
         }
 
-        assistant::answer(&document, &args.question.join(" "), args.model.as_deref())
+        assistant::answer(&document, &args.question.join(" "))
             .await
             .map_err(|source| ClientError::Assistant { source })
     }

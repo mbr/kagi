@@ -181,10 +181,6 @@ pub struct AskArgs {
     #[arg(long = "url")]
     pub extra_urls: Vec<String>,
 
-    /// Model for the assistant to answer with.
-    #[arg(long)]
-    pub model: Option<String>,
-
     /// Path to write the extracted markdown to for verification.
     #[arg(long)]
     pub save_source: Option<PathBuf>,

@@ -51,11 +51,7 @@ pub enum AssistantError {
 ///
 /// The document is passed on standard input rather than as an argument so
 /// that large pages do not exceed the operating system argument limit.
-pub async fn answer(
-    document: &str,
-    question: &str,
-    model: Option<&str>,
-) -> Result<String, AssistantError> {
+pub async fn answer(document: &str, question: &str) -> Result<String, AssistantError> {
     let mut command = Command::new(ASSISTANT_COMMAND);
     command
         .arg("--print")
@@ -63,9 +59,6 @@ pub async fn answer(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    if let Some(model) = model {
-        command.arg("--model").arg(model);
-    }
 
     let mut child = command
         .spawn()

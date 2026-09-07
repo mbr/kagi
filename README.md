@@ -86,12 +86,11 @@ kagi ask https://example.com/a 'Where do these disagree?' --url https://example.
 ```
 
 Answers are not verifiable on their own. Keep the extracted markdown to check
-them against, and select the answering model explicitly when the default is a
-poor fit:
+them against:
 
 ```sh
 kagi ask https://example.com/spec 'Summarise the wire format' \
-  --save-source spec.md --model opus
+  --save-source spec.md
 ```
 
 This subcommand shells out to the `claude` CLI, which must be installed and
