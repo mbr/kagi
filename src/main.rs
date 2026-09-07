@@ -4,6 +4,7 @@ mod assistant;
 mod cli;
 mod client;
 mod request;
+mod source;
 
 use anyhow::Result;
 use clap::Parser;

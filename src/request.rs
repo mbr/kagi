@@ -267,10 +267,9 @@ pub fn extract_body(args: &ExtractArgs) -> Result<Value, RequestError> {
 
 /// Builds the extraction request body backing a question.
 ///
-/// Answering always operates on markdown, so the response format is not
-/// configurable here.
+/// JSON preserves per-page errors and URLs before rendering source markdown.
 pub fn ask_extract_body(args: &AskArgs) -> Result<Value, RequestError> {
-    let request = extract_request(&args.urls(), args.timeout, "markdown")?;
+    let request = extract_request(&args.urls(), args.timeout, "json")?;
 
     Ok(Value::Object(serialize_object(
         "extract request",
@@ -455,9 +454,11 @@ fn split_assignment<'a>(
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use crate::{
-        cli::{SearchArgs, Workflow},
-        request::search_body,
+        cli::{AskArgs, SearchArgs, Workflow},
+        request::{RequestError, ask_extract_body, search_body},
     };
 
     /// Returns search arguments with only the query set.
@@ -491,6 +492,26 @@ mod tests {
             personalizations_json: None,
             request_json: None,
         }
+    }
+
+    /// Validates the shared page limit and structured extraction for answers.
+    #[test]
+    fn builds_ask_extraction_with_page_limit() {
+        let mut args = AskArgs::try_parse_from(["ask", "https://example.com", "question"])
+            .expect("valid ask arguments");
+        args.extra_urls = vec!["https://example.com/extra".into(); 9];
+        let body = ask_extract_body(&args).expect("ten pages are allowed");
+        assert_eq!(body["format"], "json");
+        assert_eq!(body["pages"].as_array().expect("page array").len(), 10);
+        args.extra_urls.push("https://example.com/overflow".into());
+        assert!(matches!(
+            ask_extract_body(&args),
+            Err(RequestError::TooManyPages { count: 11 })
+        ));
+        assert!(
+            AskArgs::try_parse_from(["ask", "https://example.com", "question", "--model", "test"])
+                .is_err()
+        );
     }
 
     #[test]

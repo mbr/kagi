@@ -68,16 +68,28 @@ kagi extract https://kagi.com/api/docs/openapi.md --format json | jq '.data[0].m
 
 ## Ask
 
-Extract pages and have an assistant answer a question about them:
+Extract pages and answer questions through an OpenAI-compatible Chat Completions
+API. Configure the endpoint and its model in the environment; there is no
+`--model` flag. For example:
 
 ```sh
+export OPENAI_BASE_URL=https://api.openai.com/v1
+export OPENAI_MODEL=your-model
+export OPENAI_API_KEY=your-api-key
+
 kagi ask https://example.com/report.pdf 'What is the reported revenue?'
 ```
 
+`OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`. `OPENAI_MODEL` is
+required. Set `OPENAI_API_KEY` for providers that require authentication; it is
+independent of `KAGI_API_KEY`.
+
 The first positional argument is the page, the remaining words form the
-question. Answers are constrained to the extracted content: the assistant is
-instructed to reproduce figures and quotes verbatim and to say when the pages
-do not contain the answer rather than falling back on prior knowledge.
+question. The model is instructed to answer only from the sources, cite source
+identifiers such as `[1]`, include supporting quotes, and say when the sources
+do not contain the answer. These are instructions, not guarantees of factual
+accuracy or protection against prompt injection. The model receives no tools,
+local files, or conversation history.
 
 Pull in additional pages as context, up to the extraction limit of ten:
 
@@ -93,8 +105,19 @@ kagi ask https://example.com/spec 'Summarise the wire format' \
   --save-source spec.md
 ```
 
-This subcommand shells out to the `claude` CLI, which must be installed and
-authenticated separately from the Kagi API key.
+Every answer includes a numbered source URL list generated from extraction
+metadata, so citations can be followed without `--save-source`.
+Saved Markdown contains the same labeled sources sent to the model. All
+requested pages must extract successfully and contain nonempty text before a
+chat request is sent. Source content and your question are sent to the configured
+chat provider; avoid sending private data to an endpoint you do not trust.
+
+Chat requests have a 120-second deadline and are not retried by this client
+(the proxy or provider may retry internally). The combined source and question
+limit is 1 MiB of UTF-8 text, not a model-specific token count; nothing is silently
+truncated. The completion budget is 8,192 tokens, including reasoning where
+applicable. Incomplete, refused, empty, or tool-call responses are errors.
+`--timeout` continues to control extraction only.
 
 ## Nix
 

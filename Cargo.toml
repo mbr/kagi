@@ -7,16 +7,16 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.98"
+async-openai = { version = "0.41.3", default-features = false, features = ["chat-completion", "middleware", "rustls"] }
 clap = { version = "4.5.40", features = ["derive", "env"] }
 dirs = "6.0.0"
-reqwest = { version = "0.12.22", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
 sec = "1.0.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 thiserror = "2.0.12"
-tokio = { version = "1.45.1", features = [
-    "io-util",
-    "macros",
-    "process",
-    "rt-multi-thread",
-] }
+tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread", "time"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+wiremock = "0.6.5"
