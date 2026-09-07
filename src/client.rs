@@ -8,8 +8,9 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::{
-    cli::{ApiFormat, Args, Command, ExtractArgs, SearchArgs},
-    request::{RequestError, extract_body, search_body},
+    assistant::{self, AssistantError},
+    cli::{ApiFormat, Args, AskArgs, Command, ExtractArgs, SearchArgs},
+    request::{RequestError, ask_extract_body, extract_body, search_body},
 };
 
 /// Errors raised while executing API requests.
@@ -46,6 +47,25 @@ pub enum ClientError {
         /// Underlying HTTP client error.
         #[source]
         source: reqwest::Error,
+    },
+
+    /// The extracted markdown could not be saved.
+    #[error("failed to write extracted markdown to {path}: {source}", path = path.display())]
+    SaveSource {
+        /// Path that was written to.
+        path: PathBuf,
+
+        /// Underlying file write error.
+        #[source]
+        source: io::Error,
+    },
+
+    /// The assistant failed to answer the question.
+    #[error("assistant failed: {source}")]
+    Assistant {
+        /// Underlying assistant failure.
+        #[source]
+        source: AssistantError,
     },
 
     /// Kagi returned a non-success status code.
@@ -102,6 +122,22 @@ impl KagiClient {
     /// Performs an extraction request.
     pub async fn extract(&self, args: &ExtractArgs) -> Result<String, ClientError> {
         self.post("/extract", extract_body(args)?).await
+    }
+
+    /// Extracts pages and answers a question about their content.
+    pub async fn ask(&self, args: &AskArgs) -> Result<String, ClientError> {
+        let document = self.post("/extract", ask_extract_body(args)?).await?;
+
+        if let Some(path) = &args.save_source {
+            fs::write(path, &document).map_err(|source| ClientError::SaveSource {
+                path: path.clone(),
+                source,
+            })?;
+        }
+
+        assistant::answer(&document, &args.question.join(" "), args.model.as_deref())
+            .await
+            .map_err(|source| ClientError::Assistant { source })
     }
 
     /// Sends a JSON request to an API path and returns the raw response.
@@ -177,6 +213,7 @@ pub async fn run(args: Args) -> Result<(), ClientError> {
     let result = match &args.command {
         Command::Search(search) => client.search(search).await,
         Command::Extract(extract) => client.extract(extract).await,
+        Command::Ask(ask) => client.ask(ask).await,
     };
 
     match result {

@@ -4,7 +4,10 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use thiserror::Error;
 
-use crate::cli::{ApiFormat, ExtractArgs, SearchArgs};
+use crate::cli::{ApiFormat, AskArgs, ExtractArgs, SearchArgs};
+
+/// Maximum number of pages accepted by the extraction endpoint.
+const MAX_PAGES: usize = 10;
 
 /// Errors raised while building API requests.
 #[derive(Debug, Error)]
@@ -35,6 +38,13 @@ pub enum RequestError {
 
         /// Expected assignment form.
         usage: &'static str,
+    },
+
+    /// More pages were requested than the endpoint accepts.
+    #[error("at most {MAX_PAGES} pages may be extracted at once, got {count}")]
+    TooManyPages {
+        /// Number of pages that were requested.
+        count: usize,
     },
 
     /// A typed request could not be serialized.
@@ -244,19 +254,48 @@ pub fn search_body(args: &SearchArgs) -> Result<Value, RequestError> {
 
 /// Builds the request body for `POST /extract`.
 pub fn extract_body(args: &ExtractArgs) -> Result<Value, RequestError> {
-    let request = ExtractRequest {
-        pages: args
-            .urls
-            .iter()
-            .map(|url| PageInput { url: url.clone() })
-            .collect(),
-        timeout: args.timeout,
-        format: resolve_format(args.format.as_ref()),
-    };
+    let request = extract_request(
+        &args.urls,
+        args.timeout,
+        resolve_format(args.format.as_ref()),
+    )?;
     let mut body = serialize_object("extract request", &request)?;
     merge_json_arg(&mut body, "request-json", args.request_json.as_deref())?;
 
     Ok(Value::Object(body))
+}
+
+/// Builds the extraction request body backing a question.
+///
+/// Answering always operates on markdown, so the response format is not
+/// configurable here.
+pub fn ask_extract_body(args: &AskArgs) -> Result<Value, RequestError> {
+    let request = extract_request(&args.urls(), args.timeout, "markdown")?;
+
+    Ok(Value::Object(serialize_object(
+        "extract request",
+        &request,
+    )?))
+}
+
+/// Builds an extraction request for a set of pages.
+fn extract_request(
+    urls: &[String],
+    timeout: Option<f64>,
+    format: &'static str,
+) -> Result<ExtractRequest, RequestError> {
+    if urls.len() > MAX_PAGES {
+        return Err(RequestError::TooManyPages { count: urls.len() });
+    }
+
+    Ok(ExtractRequest {
+        pages: urls
+            .iter()
+            .map(|url| PageInput { url: url.clone() })
+            .collect(),
+        timeout,
+        format,
+    })
 }
 
 /// Resolves the response format to an API value.

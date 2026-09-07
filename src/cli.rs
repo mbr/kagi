@@ -1,5 +1,7 @@
 //! Command-line interface definitions.
 
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use sec::Secret;
 
@@ -28,6 +30,9 @@ pub enum Command {
 
     /// Extract page content as markdown from URLs.
     Extract(ExtractArgs),
+
+    /// Answer a question about the content of one or more pages.
+    Ask(AskArgs),
 }
 
 /// Search endpoint arguments.
@@ -160,6 +165,43 @@ pub struct ExtractArgs {
     /// Raw request JSON object merged after flags.
     #[arg(long = "request-json")]
     pub request_json: Option<String>,
+}
+
+/// Question answering arguments.
+#[derive(Debug, Parser)]
+pub struct AskArgs {
+    /// Page to answer the question from.
+    pub url: String,
+
+    /// Question to answer.
+    #[arg(required = true, num_args = 1..)]
+    pub question: Vec<String>,
+
+    /// Additional pages to include as context.
+    #[arg(long = "url")]
+    pub extra_urls: Vec<String>,
+
+    /// Model for the assistant to answer with.
+    #[arg(long)]
+    pub model: Option<String>,
+
+    /// Path to write the extracted markdown to for verification.
+    #[arg(long)]
+    pub save_source: Option<PathBuf>,
+
+    /// Optional timeout in seconds for the extraction operation.
+    #[arg(long)]
+    pub timeout: Option<f64>,
+}
+
+impl AskArgs {
+    /// Returns every page to extract, primary URL first.
+    pub fn urls(&self) -> Vec<String> {
+        let mut urls = Vec::with_capacity(self.extra_urls.len() + 1);
+        urls.push(self.url.clone());
+        urls.extend(self.extra_urls.iter().cloned());
+        urls
+    }
 }
 
 /// Search workflow values supported by Kagi.

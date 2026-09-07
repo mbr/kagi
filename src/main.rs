@@ -1,5 +1,6 @@
 //! Command-line entry point for the Kagi API client.
 
+mod assistant;
 mod cli;
 mod client;
 mod request;

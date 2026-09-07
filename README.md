@@ -66,6 +66,37 @@ Use `--format json` for raw API JSON:
 kagi extract https://kagi.com/api/docs/openapi.md --format json | jq '.data[0].markdown'
 ```
 
+## Ask
+
+Extract pages and have an assistant answer a question about them:
+
+```sh
+kagi ask https://example.com/report.pdf 'What is the reported revenue?'
+```
+
+The first positional argument is the page, the remaining words form the
+question. Answers are constrained to the extracted content: the assistant is
+instructed to reproduce figures and quotes verbatim and to say when the pages
+do not contain the answer rather than falling back on prior knowledge.
+
+Pull in additional pages as context, up to the extraction limit of ten:
+
+```sh
+kagi ask https://example.com/a 'Where do these disagree?' --url https://example.com/b
+```
+
+Answers are not verifiable on their own. Keep the extracted markdown to check
+them against, and select the answering model explicitly when the default is a
+poor fit:
+
+```sh
+kagi ask https://example.com/spec 'Summarise the wire format' \
+  --save-source spec.md --model opus
+```
+
+This subcommand shells out to the `claude` CLI, which must be installed and
+authenticated separately from the Kagi API key.
+
 ## Nix
 
 The flake exposes the CLI as `packages.default` and the Pi prompt extension as `piExtensions.default`.
